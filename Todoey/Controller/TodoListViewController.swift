@@ -11,12 +11,16 @@ import UIKit
 class TodoListViewController: UITableViewController {
     
     var itemArray = ["Find Mike", "Buy Eggos", "Destroy Demogorgon"]
-    
+    let defaults = UserDefaults.standard
     @IBOutlet var itemsTableView: UITableView!
     
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do any additional setup after loading the view, typically from a nib.
+        
+        if let items = defaults.array(forKey: "ToDoListArray") as? [String] {
+            itemArray = items
+        }
         
         //Set the tapGesture here:
 //        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(tableViewTapped))
@@ -29,10 +33,6 @@ class TodoListViewController: UITableViewController {
         
     }
 
-    override func didReceiveMemoryWarning() {
-        super.didReceiveMemoryWarning()
-        // Dispose of any resources that can be recreated.
-    }
 
     //MARK - Tableview Datasource Methods
     
@@ -81,9 +81,10 @@ class TodoListViewController: UITableViewController {
     @IBAction func addButtonPressed(_ sender: UIBarButtonItem) {
         var textField = UITextField()
         let alert = UIAlertController(title: "Add new item", message: "", preferredStyle: .alert)
-        let action = UIAlertAction(title: "Add item", style: .default) { (alert) in
+        let action = UIAlertAction(title: "Add item", style: .default) { (action) in
             if textField.text != nil {
                 self.itemArray.append(textField.text!)
+                self.defaults.set(self.itemArray, forKey: "ToDoListArray")
                 self.tableView.reloadData()
             }
         }
