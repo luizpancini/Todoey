@@ -7,43 +7,25 @@
 //
 
 import UIKit
+import CoreData
 
 class TodoListViewController: UITableViewController {
     
     var itemArray = [Items]()
-    let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
-  
+    var selectedCategory : Category? {
+        didSet{
+            loadItems()
+        }
+    }
+    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
+    
     @IBOutlet var itemsTableView: UITableView!
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        // Do any additional setup after loading the view, typically from a nib.
-        
-        print(dataFilePath)
-        
-//        let newItem1 = Items()
-//        newItem1.title = "Find Mike"
-//        itemArray.append(newItem1)
-//
-//        let newItem2 = Items()
-//        newItem2.title = "Buy Eggos"
-//        itemArray.append(newItem2)
-//
-//        let newItem3 = Items()
-//        newItem3.title = "Destroy Demogorgon"
-//        itemArray.append(newItem3)
-        
-        loadItems()
-        
-        //Set the tapGesture here:
-//        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(tableViewTapped))
-//        messageTableView.addGestureRecognizer(tapGesture)
-        
-        
+    
         //Register the CustomCell.xib file here:
         itemsTableView.register(UINib(nibName: "CustomCell", bundle: nil), forCellReuseIdentifier: "customCell")
-        
-        
     }
 
 
@@ -66,18 +48,6 @@ class TodoListViewController: UITableViewController {
     }
     
     
-//    //Declare tableViewTapped here:
-//    @objc func tableViewTapped() {
-//        messageTextfield.endEditing(true)
-//    }
-//
-//
-//    //Declare configureTableView here:
-//    func configureTableView() {
-//        messageTableView.rowHeight = UITableViewAutomaticDimension
-//        messageTableView.estimatedRowHeight = 120
-//    }
-    
     //MARK - TableView Delegate Methods
     
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
@@ -93,8 +63,10 @@ class TodoListViewController: UITableViewController {
         let alert = UIAlertController(title: "Add new item", message: "", preferredStyle: .alert)
         let action = UIAlertAction(title: "Add item", style: .default) { (action) in
             if textField.text != nil {
-                let newItem = Items()
+                let newItem = Items(context: self.context)
                 newItem.title = textField.text!
+                newItem.done = false
+                newItem.parentCategory = self.selectedCategory
                 self.itemArray.append(newItem)
                 self.saveItems()
             }
@@ -110,29 +82,48 @@ class TodoListViewController: UITableViewController {
     //MARK - Model manipulation methods
     
     func saveItems() {
-        let encoder = PropertyListEncoder()
         do {
-            let data = try encoder.encode(itemArray)
-            try data.write(to: dataFilePath!)
+            try context.save()
         } catch {
-            print("Error enconding item array, \(error)")
+            print("Error saving context, \(error)")
         }
         tableView.reloadData()
     }
     
-    func loadItems() {
-        if let data = try? Data(contentsOf: dataFilePath!) {
-            let decoder = PropertyListDecoder()
-            do {
-                itemArray = try decoder.decode([Items].self, from: data)
-                } catch {
-                    print("Error decoding, \(error)")
-                }
-            }
+    func loadItems(with request: NSFetchRequest<Items> = Items.fetchRequest(), predicate: NSPredicate? = nil) {
+        let categoryPredicate = NSPredicate(format: "parentCategory.name MATCHES %@", selectedCategory!.name!)
+        if let additionalPredicate = predicate {
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [categoryPredicate, additionalPredicate])
+        } else {
+            request.predicate = categoryPredicate
         }
-    
-        
+        do {
+           itemArray =  try context.fetch(request)
+        } catch {
+            print("Error requesting items, \(error)")
+        }
+        tableView.reloadData()
+    }
     
     
 }
 
+//MARK: SearchBar methods
+extension TodoListViewController: UISearchBarDelegate {
+    
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        let request : NSFetchRequest<Items> = Items.fetchRequest()
+        let predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
+        request.sortDescriptors = [NSSortDescriptor(key: "title", ascending: true)]
+        loadItems(with: request, predicate: predicate)
+    }
+    
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        if searchBar.text?.count == 0 {
+            loadItems()
+            DispatchQueue.main.async {
+                searchBar.resignFirstResponder()
+            }
+        }
+    }
+}
