@@ -8,8 +8,10 @@
 
 import UIKit
 import RealmSwift
+import SwipeCellKit
+import ChameleonFramework
 
-class TodoListViewController: UITableViewController {
+class TodoListViewController: SwipeTableViewController {
     
     var toDoItems: Results<Items>?
     let realm = try! Realm()
@@ -19,25 +21,45 @@ class TodoListViewController: UITableViewController {
         }
     }
     
+    
+    @IBOutlet weak var searchBar: UISearchBar!
     @IBOutlet var itemsTableView: UITableView!
     
     override func viewDidLoad() {
         super.viewDidLoad()
-    
-        //Register the CustomCell.xib file here:
-        itemsTableView.register(UINib(nibName: "CustomCell", bundle: nil), forCellReuseIdentifier: "customCell")
+        tableView.rowHeight = 70.0
     }
-
+    
+    override func viewWillAppear(_ animated: Bool) {
+        if let hexColor = selectedCategory?.color {
+            title = selectedCategory!.name
+            if let navBarColor = UIColor(hexString: hexColor) {
+                navigationController?.navigationBar.barTintColor = navBarColor
+                searchBar.barTintColor = navBarColor
+                navigationController?.navigationBar.tintColor = ContrastColorOf(navBarColor, returnFlat: true)
+                navigationController?.navigationBar.largeTitleTextAttributes = [NSAttributedStringKey.foregroundColor : ContrastColorOf(navBarColor, returnFlat: true)]
+            }
+        }
+    }
+    
+    override func viewWillDisappear(_ animated: Bool) {
+        navigationController?.navigationBar.barTintColor = UIColor(hexString: "1D9BF6")
+        navigationController?.navigationBar.tintColor = FlatWhite()
+        navigationController?.navigationBar.largeTitleTextAttributes = [NSAttributedStringKey.foregroundColor : FlatWhite()]
+    }
 
     //MARK - Tableview Datasource Methods
     
     //Declare cellForRowAtIndexPath here:
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "customCell", for: indexPath) as! CustomCell
-        cell.cellBackground.backgroundColor = UIColor.white
-        cell.cellLabel.text = toDoItems?[indexPath.row].title ?? "No items added yet"
+        let cell = super.tableView(tableView, cellForRowAt: indexPath) 
+        cell.textLabel?.text = toDoItems?[indexPath.row].title ?? "No items added yet"
         //Ternary
         cell.accessoryType = toDoItems?[indexPath.row].done == true ? .checkmark : .none
+        if let color = UIColor(hexString: selectedCategory!.color)?.darken(byPercentage: CGFloat(indexPath.row)/CGFloat(toDoItems!.count)) {
+            cell.backgroundColor = color
+            cell.textLabel?.textColor = ContrastColorOf(color, returnFlat: true)
+        }
         return cell
     }
     
@@ -93,6 +115,20 @@ class TodoListViewController: UITableViewController {
         alert.addAction(action)
         present(alert, animated: true, completion: nil)
     }
+    
+    //MARK: Delete items
+    override func updateModel(at indexPath: IndexPath) {
+        if let deletedItem = self.toDoItems?[indexPath.row] {
+            do {
+                try realm.write {
+                    realm.delete(deletedItem)
+                }
+            } catch {
+                print("Error deleting item, \(error)")
+            }
+        }
+    }
+    
     
     //MARK - Model manipulation methods
     
